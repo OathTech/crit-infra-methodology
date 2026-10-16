@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git remote add:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git send-email:*)",
+      "Bash(git config --global:*)",
+      "Bash(gh:*)",
+      "Bash(glab:*)",
+      "Bash(curl -X:*)",
+      "Bash(curl --request:*)",
+      "Bash(curl -d:*)",
+      "Bash(curl --data:*)",
+      "Bash(curl --data-binary:*)",
+      "Bash(curl --data-raw:*)",
+      "Bash(curl -F:*)",
+      "Bash(curl --form:*)",
+      "Bash(curl -T:*)",
+      "Bash(curl --upload-file:*)",
+      "Bash(wget --post-data:*)",
+      "Bash(wget --post-file:*)",
+      "Bash(wget --method:*)"
+    ]
+  }
+}

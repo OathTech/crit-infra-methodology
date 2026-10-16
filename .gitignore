@@ -1,0 +1,33 @@
+# This repository tracks the AUDIT METHODOLOGY ONLY — the standing instructions, the agent
+# contract, and the orchestration scripts. It deliberately does NOT track the audits: each
+# `<name>-verified/` fork cloned into this workspace is its own repository, and may hold working
+# reproducers for unfixed defects. `esbmc/` and `formal-tools/` are third-party tool checkouts.
+#
+# The policy is allowlist, not denylist: everything at the root is ignored, and the few
+# methodology paths are re-included below. A fork cloned here next month is therefore ignored
+# by default rather than depending on someone remembering to add a rule.
+
+/*
+
+!/.gitignore
+!/README.md
+!/LICENSE
+!/SECURITY.md
+!/CONTRIBUTING.md
+!/CLAUDE.md
+!/blog/
+!/.claude/
+!/.orchestrator/
+
+# .claude/ — only the shared permission rules, which are part of the safety posture CLAUDE.md
+# describes. Personal overrides (settings.local.json) stay local.
+/.claude/*
+!/.claude/settings.json
+
+# .orchestrator/ — the contract, scripts and templates, but not runtime state. Lock files,
+# watchdog logs, FIFO tickets and heartbeats are per-run artifacts and are recreated on demand.
+/.orchestrator/*.lock
+/.orchestrator/*.log
+/.orchestrator/agents/
+/.orchestrator/fuzzq/
+/.orchestrator/reports/
