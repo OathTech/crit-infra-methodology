@@ -1,30 +1,38 @@
 # Finding Power-Grid Bugs for Tens of Dollars
 
-*Oath Technologies · October 2026*
+*Lee Pike & Mike Dodds, Oath Technologies · October 2026*
 
 The public conversation about AI and vulnerability discovery has settled on a story: finding real
-security bugs takes a frontier model, a purpose-built scaffold, and a large compute budget. There is
-evidence for it. Anthropic's Claude Mythos Preview found a 27-year-old flaw in OpenBSD's TCP stack,
+security bugs takes a frontier model, a purpose-built scaffold, and a large compute budget. For example, Anthropic's Claude Mythos Preview found a 27-year-old flaw in OpenBSD's TCP stack,
 but only after
-[roughly 1,000 runs costing just under $20,000](https://www.sovereignmagazine.com/article/claude-mythos-27-year-bug-cost),
-and a 16-year-old FFmpeg bug came out of
-[several hundred runs costing about $10,000](https://www.theregister.com/2026/04/10/project_glasswing/).
-Project Glasswing has since
+[roughly 1,000 runs costing just under $20,000](https://www.sovereignmagazine.com/article/claude-mythos-27-year-bug-cost).
+The same effort, Project Glasswing, has since
 [reported more than 10,000 vulnerabilities](https://www.helpnetsecurity.com/2026/05/26/anthropic-project-glasswing-update/)
 backed by $100 million in model credits.
 
-That work is remarkable, and models like Fable and Mythos are extraordinary at finding deep,
-subtle bugs that have survived decades of review. But the story leaves out something important: many real, exploitable defects in critical software can be found and fixed today, for tens of dollars per codebase, without a frontier model. The tools that find them have existed for years. What has changed is that language-model agents can now do the tedious work of building software, running tools, and evaluating the results.
+Formal verification is following the same path. On October 22, Anthropic and Theorem
+[reported](https://www.anthropic.com/research/formal-verification) that Claude had proven 239
+entry points across 123 open-source libraries free of crashes for every input under 64 MB. The
+proofs work on the compiled RISC-V machine code, are checked by the Rocq proof assistant, and rest
+on formal models of the processor and of Linux. Together they run to about 180 million lines of
+Rocq, and a single proof can take hundreds of millions of tokens to produce. Along the way, the
+effort found hundreds of bugs.
+
+These efforts are remarkable. Models like Fable and Mythos are extraordinary at finding deep, subtle
+bugs that have survived decades of review, and a machine-checked proof that code cannot crash is
+a far stronger guarantee than any list of bugs. But the story leaves out something important: many real, exploitable defects in critical software can be found and fixed today, for tens of dollars per codebase, without a frontier model. The tools that find them have existed for years. What has changed is that language-model agents can now do the tedious work of building software, running tools, and evaluating the results. We don't produce whole-program proofs. We use lightweight tools on the source code to find the bugs that are already there, which any team can afford to do today.
 
 Recently, we put that claim to the test against open-source software that runs the power grid. This post describes what we did and what it cost, and it points you to resources for doing the same on your own codebases.
 
 ## What we audited
 
-We audited ten open-source protocol stacks that run inside substations, RTUs, PLCs, smart meters,
+The software that runs the power grid has become a direct target, not just a theoretical worry. The [Industroyer malware](https://www.welivesecurity.com/2017/06/12/industroyer-biggest-threat-industrial-control-systems-since-stuxnet/) that blacked out part of Kyiv in 2016 spoke the grid's own protocols to operate substation breakers directly, and a [second variant](https://www.welivesecurity.com/2022/04/12/industroyer2-industroyer-reloaded/) was turned on Ukraine's grid again in 2022. More recently, U.S. and allied agencies have [warned](https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-038a) that state-backed groups are quietly pre-positioning inside power, water, and communications networks rather than simply spying on them. Much of the code that actually parses these protocols is open source, written in C, and maintained by small teams, exactly the kind of software we set out to examine.
+
+We audited ten open-source protocol stacks that run inside power-grid substations, RTUs, PLCs, smart meters,
 EV chargers, and grid-facing industrial servers. Between them they cover SCADA telemetry and
 control, substation automation, industrial machine-to-machine messaging, utility meter reading,
 and communication between electric vehicles and chargers. Many are embedded in commercial
-equipment whose operators may not know they ship them.
+equipment whose operators may not even know it is there.
 
 Nine of the stacks are written in **C** and one in **C++**. Several also ship bindings or sibling
 ports in C#, Java, or Python. This is the classic profile for memory-safety bugs: hand-written
@@ -37,9 +45,10 @@ Several of these projects have vulnerability reports open with their maintainers
 
 | | |
 |---|---|
-| Confirmed defects | **30** |
-| Found by fuzzing / bounded model checking / agent-led code review | **8 / 5 / 17** |
-| Projects with findings / clean | **6 / 4** |
+| Confirmed defects | **29** |
+| — of those: filed with vendors / held / needed no report | **6 / 12 / 11** |
+| Found by fuzzing / bounded model checking / agent-led code review | **8 / 5 / 16** |
+| Projects with findings / no findings | **6 / 4** |
 | Fuzzer executions across all campaigns | **13.6 billion+** |
 | ESBMC bounded-model-checking proofs attempted | **60** |
 | TLA+ protocol models built and checked against the real code | **6** |
@@ -47,21 +56,17 @@ Several of these projects have vulnerability reports open with their maintainers
 | Total model spend, all ten projects, at API list price | **about $1,050** |
 
 The defects range from remotely reachable out-of-bounds reads and writes, through integer overflows
-that are undefined behavior in C, to memory leaks, null dereferences, reachable assertions, and
-protocol-logic flaws in how a receiver tracks sequence state.
+that are undefined behavior in C, to memory leaks, null dereferences, reachable assertions, and protocol-logic flaws in how a receiver tracks sequence state.
 
 Finding a defect and confirming it are separate steps. However a defect was first spotted, we then
-tried to confirm it independently. Twenty-one of the 30 defects were reproduced under a sanitizer, or caught by a model checker run against the real code. Every report we have filed includes a reproducer: concrete code that triggers the bug.
+tried to confirm it independently. We reproduced 21 of the 29 defects under a sanitizer, or caught them with a model checker run against the real code. Every report we have filed includes a reproducer: concrete code that triggers the bug.
 
-Four of the ten projects came back clean, meaning there were no findings. Clean means we found nothing with the tools and depth we
-used, not that the code is free of bugs. A well-maintained library *should* survive an audit, and
-padding a clean result with marginal findings wastes maintainers' time.
-
+We filed disclosures for 6 bugs. Another 12 are confirmed but held, most queued behind a higher-severity report for the same project. The remaining 11 needed no report from us: fixed upstream before we could file, already filed publicly by other researchers, or otherwise already handled.
 
 ## The method: free tools that have existed for years
 
-Three families of tools did the heavy lifting. Fuzzing discovered 8 of the 30 defects and bounded
-model checking discovered 5. The other 17 came from agents reading code with a specific
+Three families of tools did the heavy lifting. Fuzzing discovered 8 of the 29 defects and bounded
+model checking discovered 5. The other 16 came from agents reading code with a specific
 question in mind, which we describe in the next section. Often that question came from a tool: a
 fuzzer finds one signed-shift bug, and an agent then sweeps the codebase for others like it.
 TLA+ discovered nothing new on its own. Its value was turning a suspected logic bug into a proven
@@ -75,7 +80,7 @@ nothing in model fees.
 **Coverage-guided fuzzing.** A fuzzer such as [libFuzzer](https://llvm.org/docs/LibFuzzer.html)
 feeds millions of mutated inputs into a parser per minute, steered toward inputs that reach new
 code, while sanitizers watch for memory errors and undefined behavior. It is the fastest way to
-find shallow-to-moderate memory bugs in wire-format decoders. One project had no tests, no CI and
+find shallow-to-moderate memory bugs in wire-format decoders. One project had no tests, no CI, and
 no fuzzing at all. A harness an agent wrote from scratch found a real memory bug
 in its first minute of running. In another, an earlier source review had come up clean, and only
 fuzzing afterwards found both of its defects. One of the two belonged to a class of
@@ -111,7 +116,7 @@ for (i = 0; i < len; i++)
 ```
 
 The fix is to accumulate in a `uint32_t` and convert once at the end. On today's compilers this
-usually does what the author intended, which is why it can surviv for years. But a compiler is still
+usually does what the author intended, which is why it can survive for years. But a compiler is still
 allowed to miscompile it, and in a build that traps on overflow, it becomes a crash. Other fuzzing
 finds in the same audits included a memory leak on a parse-error path, unbounded recursion on
 deeply nested input, and a read past the end of a buffer in a shared bit-reader:
@@ -119,8 +124,6 @@ deeply nested input, and a read past the end of a buffer in a shared bit-reader:
 ```c
 bit = (data[byte_pos] >> bit_pos) & 1;   /* never checks byte_pos < len */
 ```
-
-
 
 **Bounded model checking with [ESBMC](https://github.com/esbmc/esbmc).** A fuzzer samples inputs,
 while a model checker reasons about *all* inputs up to a bound. Given a small harness around a
@@ -192,8 +195,8 @@ Valid(st, sq) ==
 The bridge fed both the model and the real C function the same transitions. They disagreed on 87
 of 144. The suspicion turned out to be too narrow: besides accepting a new state without a
 sequence reset, the code accepted a state number that went *backwards*, which is a plain replay.
-After the fix, all 153 transitions in the extended sweep agree. In another project, a model of a
-sequence window covered all 67 million reachable states and found no mismatch with the real code.
+After the fix, all 153 transitions in the extended sweep agree. In another project, the bridge drove the real
+sequence-window function across all 67 million of its possible inputs, with no mismatch against the model.
 That is a positive result worth as much as a finding.
 
 The key to TLA+ is a bridge: a separate harness that runs the real C function against the
@@ -202,8 +205,8 @@ checks while silently disagreeing with the code it described, and only the bridg
 use TLA+ selectively, only when a protocol meets a short list of entry criteria. When it doesn't,
 we write down a "not modeled, and here's why" decision.
 
-None of these tools is new. ESBMC, TLA+ and libFuzzer have each been mature for years. What kept
-them out of most engineering teams was never licensing or compute. It was expertise and labor:
+None of these tools is new. ESBMC, TLA+, and libFuzzer have each been mature for years. What kept
+them out of most engineering teams was expertise and labor:
 building the target with the right instrumentation, writing harnesses, stubbing out hardware,
 choosing bounds, and reading the output. That is exactly the work language-model agents are now
 good at. In one audit, ESBMC itself lacked support for two C++ library features the target
@@ -227,7 +230,7 @@ produce the crashing input, the bridge between each TLA+ model and the real code
 the fuzzer is actually instrumented. Each turns "do you believe the agent?" into "does this check
 pass?"
 
-### What this is not
+### Limitations
 
 None of this is full formal verification, and none of it is exhaustive. We have not proven any
 library functionally correct, meaning that it does what its protocol specification says it
@@ -235,7 +238,7 @@ should. Each ESBMC proof covers one function, a handful of properties, and input
 bound. Each TLA+ model covers one piece of protocol state. Fuzzing only finds what its harnesses
 reach. And we looked for particular classes of bug, mainly memory safety, undefined behavior and
 sequence-number logic. We did not systematically look for cryptographic weaknesses,
-authentication design flaws, timing side channels or most other protocol-logic errors.
+authentication design flaws, timing side channels, or most other protocol-logic errors.
 
 The defects in this post are low-hanging fruit: bugs that cheap, well-understood tools find once
 someone does the work of setting them up. That is the point of the post. These bugs are still out
@@ -246,7 +249,7 @@ does not mean the code is secure.
 ## The method: let agents do the tedious work
 
 We used Claude-based coding agents, mostly the mid-tier Sonnet 5 with Opus 5 for
-orchestration. We used no Fable or Mythos at any point. The agents did the parts of an audit that
+orchestration. The agents did the parts of an audit that
 are laborious rather than deep:
 
 - **Building the library.** Old autotools builds, CMake projects with optional features, embedded
@@ -259,8 +262,8 @@ are laborious rather than deep:
 - **Running campaigns and collecting results.** Agents run two-minute triage waves, promote only
   the harnesses that are still finding new coverage, and stop them when coverage flattens.
 - **Triage.** Agents deduplicate crashes, minimize the triggering input, and check whether the
-  real production caller could ever produce that input. This last check matters. In three of our
-  first seven audits, an apparent crash turned out to be a harness bug, not a library bug.
+  real production caller could ever produce that input. This last check matters: an apparent crash
+  can easily be a harness bug rather than a library bug.
 - **Prior art.** Agents check each finding against published CVEs, against the live upstream
   branch, and against fixes a vendor made quietly under an internal ticket.
 - **Writing the disclosure.** Each package includes a concrete, deterministic trigger, a root-cause
@@ -291,7 +294,7 @@ prove the fix.
 ### Why reading code found more than the tools
 
 We didn't expect review to find more defects than the tools, and we have no controlled experiment
-that explains it. Looking back at where each finding came from, we suspect four reasons.
+that explains it. Looking back at where each finding came from, we suspect three reasons.
 
 **The count flatters review.** Much of the review started from a tool or from a published
 advisory. In one project, a fuzzer found a signed-arithmetic bug, and an agent then found four
@@ -309,9 +312,8 @@ also covers code that is unreachable today, which no dynamic tool will ever run.
 to say about an operator-precedence mistake that sets the wrong bits, or a missing anti-replay
 check. TLA+ can catch some logic errors like these, but only where someone has built a model.
 
-
 None of this weakens the case for cheap AI. The same mid-tier model did the reviewing, inside the
-same $20–$120 budget per audit, and it found real bugs, including the worst one in the series. The
+same $20–$115 budget per audit, and it found real bugs, including the worst one in the series. The
 tools and the review also worked best together. The tools gave review its questions and confirmed
 its answers. Review covered the code that the harnesses and models never reached.
 
@@ -336,17 +338,17 @@ added nothing.
 | G | 2 defects | ~$45 |
 | H | 7 defects | ~$65 |
 | I | Clean | ~$85 |
-| J | 14 defects | ~$115 |
-| **All ten audits** | **30 defects** | **~$500** |
+| J | 13 defects | ~$115 |
+| **All ten audits** | **29 defects** | **~$500** |
 | Orchestrating session | | ~$550 |
 | **Total** | | **~$1,050** |
 
-A full audit of one grid protocol stack cost between about $20 and $120, roughly $35 at the
+A full audit of one grid protocol stack cost between about $20 and $115, roughly $35 at the
 median. The two most expensive were the first two, which established the methodology everyone
 else followed. Our first-wave numbers are attributed from shared sessions, so treat them as ±20%.
 The second wave ran one agent per phase per project, so those figures are direct measurements.
-For comparison, each of the frontier-model campaigns cited above cost $10,000–$20,000. Our entire
-ten-project series, orchestration included, cost about a tenth of the cheaper one. It is also orders of
+For comparison, the frontier-model campaign cited above cost just under $20,000. Our entire
+ten-project series, orchestration included, cost about a twentieth of that. It is also orders of
 magnitude below a traditional manual audit.
 
 ### Where the money actually went, and how to do it for $10–$20
@@ -366,12 +368,11 @@ context. Very little of the bill was the model actually thinking. That means mos
    audits, which worked this way, cost $25–$65 each.
 3. **Keep the model out of the waiting.** A 30-minute fuzzing campaign needs no model watching it.
    A shell script waits, and the agent resumes when the campaign exits with a result.
-4. **Use a smaller model for mechanical phases.** Builds, harness boilerplate, re-running gates and
+4. **Use a smaller model for mechanical phases.** Builds, harness boilerplate, re-running gates, and
    refreshing documents don't need a strong model. Claude Haiku 4.5 costs half as much as Sonnet 5
    per token. Save the stronger model for triage and disclosure judgment.
 
 Applied together, we estimate that a full audit of one library costs $10–$20.
-
 
 ## The methodology, open to everyone
 
@@ -403,9 +404,9 @@ You review the findings and decide what to send.
 
 Frontier models are moving the ceiling of what automated vulnerability research can find, and
 that matters. But the floor has moved too, and it has moved further for most of the software that
-runs critical infrastructure. Fuzzers, bounded model checkers and specification languages have
+runs critical infrastructure. Fuzzers, bounded model checkers, and specification languages have
 been powerful for years. Agents have now made them nearly push-button to use. Ten audits of grid
-protocol stacks produced thirty confirmed defects for about $500 of audit work. Better session
+protocol stacks produced 29 confirmed defects for about $500 of audit work. Better session
 hygiene could cut most of that bill again.
 
 You don't need to wait for access to the most capable model to find and fix these bugs, and
@@ -415,6 +416,6 @@ neither do the people who depend on this software.
 
 *AI disclosure: AI assisted in writing this post and the work described within it.*
 
-*Oath Technologies works on assurance for critical-infrastructure software. If you maintain or
+*Oath Technologies is a focused research organization working on AI oversight through formal methods. If you maintain or
 depend on an open-source grid protocol library and want to talk about auditing it, contact us at
 [oath.tech](https://oath.tech/).*
