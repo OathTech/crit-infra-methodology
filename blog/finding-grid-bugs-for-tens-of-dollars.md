@@ -1,6 +1,6 @@
 # Finding Power-Grid Bugs for Tens of Dollars
 
-*Lee Pike & Mike Dodds, Oath Technologies · October 2026*
+*Lee Pike and Mike Dodds, Oath Technologies · November 2026*
 
 The public conversation about AI and vulnerability discovery has settled on a story: finding real
 security bugs takes a frontier model, a purpose-built scaffold, and a large compute budget. For example, Anthropic's Claude Mythos Preview found a 27-year-old flaw in OpenBSD's TCP stack,
@@ -18,15 +18,13 @@ on formal models of the processor and of Linux. Together they run to about 180 m
 Rocq, and a single proof can take hundreds of millions of tokens to produce. Along the way, the
 effort found hundreds of bugs.
 
-These efforts are remarkable. Models like Fable and Mythos are extraordinary at finding deep, subtle
-bugs that have survived decades of review, and a machine-checked proof that code cannot crash is
-a far stronger guarantee than any list of bugs. But the story leaves out something important: many real, exploitable defects in critical software can be found and fixed today, for tens of dollars per codebase, without a frontier model. The tools that find them have existed for years. What has changed is that language-model agents can now do the tedious work of building software, running tools, and evaluating the results. We don't produce whole-program proofs. We use lightweight tools on the source code to find the bugs that are already there, which any team can afford to do today.
+Models like Fable and Mythos are extraordinary at finding long-standing bugs that have survived decades of review. And machine-checked proofs can now give a far stronger guarantee than any list of bugs. But many exploitable defects in critical software can be found much more cheaply than this, for tens of dollars per codebase. The formal tools that can find them have existed for years, but are often overlooked in practice. Now, language-model agents can do the tedious work, meaning any team can afford this today.
 
-Recently, we put that claim to the test against open-source software that runs the power grid. This post describes what we did and what it cost, and it points you to resources for doing the same on your own codebases.
+Recently, we put that claim to the test against open-source software that runs the power grid. Analyzing ten open-source projects, we found 29 defects at a median AI-assistant cost of about $35 per project, and with better session hygiene, we estimate $10–$20 per project going forward. We are releasing as open source [our Claude Code methodology](https://github.com/OathTech/crit-infra-methodology) for others to carry out similar work.
 
 ## What we audited
 
-The software that runs the power grid has become a direct target, not just a theoretical worry. The [Industroyer malware](https://www.welivesecurity.com/2017/06/12/industroyer-biggest-threat-industrial-control-systems-since-stuxnet/) that blacked out part of Kyiv in 2016 spoke the grid's own protocols to operate substation breakers directly, and a [second variant](https://www.welivesecurity.com/2022/04/12/industroyer2-industroyer-reloaded/) was turned on Ukraine's grid again in 2022. More recently, U.S. and allied agencies have [warned](https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-038a) that state-backed groups are quietly pre-positioning inside power, water, and communications networks rather than simply spying on them. Much of the code that actually parses these protocols is open source, written in C, and maintained by small teams, exactly the kind of software we set out to examine.
+The software that runs the power grid has become a direct target for malicious behavior. The [Industroyer malware](https://www.welivesecurity.com/2017/06/12/industroyer-biggest-threat-industrial-control-systems-since-stuxnet/) that blacked out part of Kyiv in 2016 spoke the grid's own protocols to operate substation breakers directly, and a [second variant](https://www.welivesecurity.com/2022/04/12/industroyer2-industroyer-reloaded/) was turned on Ukraine's grid again in 2022. More recently, U.S. and allied agencies have [warned](https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-038a) that state-backed groups are quietly pre-positioning inside power, water, and communications networks rather than simply spying on them. Much of the code that actually parses these protocols is open source, written in C, and maintained by small teams, exactly the kind of software we set out to examine.
 
 We audited ten open-source protocol stacks that run inside power-grid substations, RTUs, PLCs, smart meters,
 EV chargers, and grid-facing industrial servers. Between them they cover SCADA telemetry and
@@ -34,7 +32,7 @@ control, substation automation, industrial machine-to-machine messaging, utility
 and communication between electric vehicles and chargers. Many are embedded in commercial
 equipment whose operators may not even know it is there.
 
-Nine of the stacks are written in **C** and one in **C++**. Several also ship bindings or sibling
+We found these projects by searching for well-supported open-source protocol stacks with evidence of commercial usage. Nine of the stacks are written in **C** and one in **C++**. Several also ship bindings or sibling
 ports in C#, Java, or Python. This is the classic profile for memory-safety bugs: hand-written
 parsers for binary wire formats in a language with no bounds checking, often running on embedded
 targets with few runtime defenses.
@@ -58,9 +56,6 @@ Several of these projects have vulnerability reports open with their maintainers
 The defects range from remotely reachable out-of-bounds reads and writes, through integer overflows
 that are undefined behavior in C, to memory leaks, null dereferences, reachable assertions, and protocol-logic flaws in how a receiver tracks sequence state.
 
-Finding a defect and confirming it are separate steps. However a defect was first spotted, we then
-tried to confirm it independently. We reproduced 21 of the 29 defects under a sanitizer, or caught them with a model checker run against the real code. Every report we have filed includes a reproducer: concrete code that triggers the bug.
-
 We filed disclosures for 6 bugs. Another 12 are confirmed but held, most queued behind a higher-severity report for the same project. The remaining 11 needed no report from us: fixed upstream before we could file, already filed publicly by other researchers, or otherwise already handled.
 
 ## The method: free tools that have existed for years
@@ -73,8 +68,8 @@ TLA+ discovered nothing new on its own. Its value was turning a suspected logic 
 one, and proving other code correct.
 
 All of these tools are open source, and all of them run on a laptop or a modest workstation. Ours was an 8-core machine with under 8 GB of RAM, shared by
-three concurrent audits. Running these tools costs nothing but electricity. **No tokens are spent
-while a fuzzer or a model checker is working.** The 13.6 billion fuzz executions above cost us
+three concurrent audits. Running these tools costs nothing but electricity. No tokens are spent
+while a fuzzer or a model checker is working. The 13.6 billion fuzz executions above cost us
 nothing in model fees.
 
 **Coverage-guided fuzzing.** A fuzzer such as [libFuzzer](https://llvm.org/docs/LibFuzzer.html)
@@ -312,8 +307,7 @@ also covers code that is unreachable today, which no dynamic tool will ever run.
 to say about an operator-precedence mistake that sets the wrong bits, or a missing anti-replay
 check. TLA+ can catch some logic errors like these, but only where someone has built a model.
 
-None of this weakens the case for cheap AI. The same mid-tier model did the reviewing, inside the
-same $20–$115 budget per audit, and it found real bugs, including the worst one in the series. The
+None of this weakens the case for cheap AI. The same mid-tier model did the reviewing, and it found real bugs, including the worst one in the series. The
 tools and the review also worked best together. The tools gave review its questions and confirmed
 its answers. Review covered the code that the harnesses and models never reached.
 
@@ -376,9 +370,7 @@ Applied together, we estimate that a full audit of one library costs $10–$20.
 
 ## The methodology, open to everyone
 
-> **[PLACEHOLDER: public release announcement and link to the methodology repository.]**
-
-We're releasing the methodology we used so that others can run these audits themselves. The
+We're releasing [the methodology we used](https://github.com/OathTech/crit-infra-methodology) so that others can run these audits themselves. The
 repository contains:
 
 - **An agent contract.** This phase-by-phase playbook takes an agent from cloning a library to a
@@ -394,13 +386,24 @@ repository contains:
 - **Orchestration scripts.** These let several audits share one ordinary machine without starving
   each other of CPU or memory.
 
-The aim is that **a utility engineer, a grid operator's software team, or a vendor's own developers
-can run a credible audit of the protocol libraries they depend on, without expertise in
-security research or formal methods.** The agent sets up the fuzzer, writes the model-checking
-harness, and drafts the TLA+ model. The contract tells it, and you, what counts as a real result.
-You review the findings and decide what to send.
+**Running it safely.** An audit has an agent build and run untrusted third-party code — it clones a
+library, compiles it, and runs it against a flood of fuzzed inputs — so we recommend running the
+whole pipeline in a disposable sandbox, such as a container or VM, with no access to your
+credentials or internal network. The methodology also constrains the agent directly. The standing
+instructions make it read-only to the outside world, and that rule is the boundary; a checked-in
+set of permission `deny` rules is the backstop, blocking the concrete ways an agent could write off
+the machine — `git push`, changing a remote, `gh`/`glab`, `git send-email`, and the `curl`/`wget`
+flags that upload data. Reading — fetching sources, cloning repositories, searching the web — stays
+allowed. The agent assembles a disclosure package on disk, but sending it is always a human step.
+All of this is short and checked in, so you can read exactly what the agent may and may not do
+before you run it.
 
-## The takeaway
+The aim is that a utility engineer, a grid operator's software team, or a vendor's own developers
+can run a credible audit of the protocol libraries they depend on, without expertise in
+security research or formal methods. The agent sets up the fuzzer, writes the model-checking
+harness, and drafts the TLA+ model. You review the findings and decide what to report.
+
+## Conclusion
 
 Frontier models are moving the ceiling of what automated vulnerability research can find, and
 that matters. But the floor has moved too, and it has moved further for most of the software that
@@ -416,6 +419,4 @@ neither do the people who depend on this software.
 
 *AI disclosure: AI assisted in writing this post and the work described within it.*
 
-*Oath Technologies is a focused research organization working on AI oversight through formal methods. If you maintain or
-depend on an open-source grid protocol library and want to talk about auditing it, contact us at
-[oath.tech](https://oath.tech/).*
+*Oath Technologies is a focused research organization working on AI oversight through formal methods.*
