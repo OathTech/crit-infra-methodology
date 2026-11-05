@@ -5,9 +5,9 @@ C++ protocol stacks — SCADA telemetry, substation automation, metering, EV cha
 fuzzing, bounded model checking, and TLA+, on an ordinary workstation.
 
 It was developed during a series of audits of ten open-source grid protocol stacks that produced
-thirty confirmed defects for about $500 of audit work. The write-up,
-[*Finding Power-Grid Bugs for Tens of Dollars*](blog/finding-grid-bugs-for-tens-of-dollars.md),
-is in this repository: what was audited, what was found, what it cost, and how the tools and
+29 confirmed defects for about $500 of audit work. The write-up,
+[*Finding Power-Grid Bugs for Tens of Dollars*](https://oath.tech/pub/2026/11/finding-grid-bugs-for-tens-of-dollars/),
+is on the Oath Technologies site: what was audited, what was found, what it cost, and how the tools and
 agents fit together.
 
 The aim: **a utility engineer, a grid operator's software team, or a vendor's own developers can
@@ -20,7 +20,6 @@ review the findings and decide what to send.
 
 | Path | What it is |
 |---|---|
-| [blog/](blog/) | The write-up of the audit series this methodology came from. |
 | [CLAUDE.md](CLAUDE.md) | Standing instructions, auto-loaded by [Claude Code](https://docs.claude.com/en/docs/claude-code) and inherited by every agent spawned here: the read-only-to-the-outside-world rule, git identity, a pointer to the contract. |
 | [.claude/settings.json](.claude/settings.json) | Harness-enforced `deny` rules backing the read-only rule — an agent can prepare a disclosure but cannot push, file, or POST one. |
 | [.orchestrator/AGENT_CONTRACT.md](.orchestrator/AGENT_CONTRACT.md) | The audit contract: a phase-by-phase playbook from cloning a library to a disclosure package, with an exit gate and time budget per phase — the KILL gate, instrumentation gate, re-diff gate, provenance check, Phase 8 package self-verification, SEV-STOP, and report format. |
